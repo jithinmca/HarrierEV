@@ -344,11 +344,11 @@ async function loadIceExpenses() {
       fuelHtml = `
         <div class="border rounded p-2 mb-2 small bg-light">
           <div><b>Fuel cost (calculated)</b></div>
-          <div class="text-muted small">Based on odo logs & master price history</div>
+          <div class="text-muted small d-none">Based on odo logs & master price history</div>
           <div class="mt-1">₹${fuelCost.toFixed(0)}</div>
         </div>`;
     }
-    el("iceHistory").insertAdjacentHTML('beforeend', fuelHtml);
+    el("iceFuelExpenses").innerHTML = fuelHtml;
     el("iceTotal").textContent = "Total: ₹" + Math.round(total);
     return total;
   } catch (e) {
@@ -428,10 +428,29 @@ async function calcFuelCostDynamic() {
       odo: Number(l.odo)
     }));
 
-    if (logs.length < 2) return 0;
+    if (logs.length === 0) return 0;
 
-    // We'll compute segment-by-segment: for each consecutive pair of logs,
-    // find the most recent master entry whose date <= currentLog.date
+    // If only one log exists, assume previous odo = 0
+    if (logs.length === 1) {
+      const curr = logs[0];
+      const dist = curr.odo;  // since prev = 0
+      if (dist <= 0) return 0;
+
+      // find applicable master record
+      let applicable = masters[0];
+      for (let j = 0; j < masters.length; j++) {
+        if (masters[j].date.getTime() <= curr.date.getTime()) applicable = masters[j];
+        else break;
+      }
+
+      if (applicable && applicable.mileage > 0 && applicable.fuelPrice > 0) {
+        const litres = dist / applicable.mileage;
+        return litres * applicable.fuelPrice;
+      }
+      return 0;
+    }
+
+    // If 2 or more logs, do normal segment-by-segment calculation
     let totalFuelCost = 0;
     for (let i = 1; i < logs.length; i++) {
       const prev = logs[i - 1];
@@ -445,15 +464,11 @@ async function calcFuelCostDynamic() {
         if (masters[j].date.getTime() <= curr.date.getTime()) applicable = masters[j];
         else break;
       }
-      if (!applicable) {
-        // if none earlier, use the earliest master record
-        applicable = masters[0];
-      }
+      if (!applicable) applicable = masters[0];
 
       if (applicable && applicable.mileage > 0 && applicable.fuelPrice > 0) {
         const litres = dist / applicable.mileage;
-        const cost = litres * applicable.fuelPrice;
-        totalFuelCost += cost;
+        totalFuelCost += litres * applicable.fuelPrice;
       }
     }
     return totalFuelCost;
@@ -462,6 +477,7 @@ async function calcFuelCostDynamic() {
     return 0;
   }
 }
+
 
 // ------------------- Savings summary (EV total, ICE total, Net savings) -------------------
 async function updateSavingsSummary() {
