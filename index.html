@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Harrier EV</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <meta name="theme-color" content="#2c3e50"/>
+  <style>
+    body { background:#f8f9fa; }
+    header { position:sticky; top:0; z-index:1000; background:#fff; border-bottom:1px solid #dee2e6; }
+    .nav-pills { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:thin; }
+    .nav-pills::-webkit-scrollbar { height:4px; }
+    main { padding:10px; }
+    .card { margin-bottom:12px; }
+    .toast-banner {
+      background:#fff3cd; border:1px solid #ffeeba; padding:8px 12px;
+      border-radius:8px; font-size:13px; margin-bottom:10px;
+    }
+    .summary-box { background:#eef; border:1px solid #ccd; border-radius:8px; padding:10px; margin-bottom:12px; }
+  </style>
+</head>
+<body>
+  <header class="p-2 d-flex justify-content-between align-items-center">
+    <h6 class="m-0">⚡ Harrier EV</h6>
+    <div>
+      <button id="loginBtn" class="btn btn-sm btn-outline-primary">Login</button>
+      <button id="logoutBtn" class="btn btn-sm btn-outline-secondary d-none">Logout</button>
+    </div>
+  </header>
+
+  <ul class="nav nav-pills flex-nowrap overflow-auto text-nowrap sticky-top bg-white p-2" id="tabs" role="tablist" style="gap:6px; top:45px;">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#charge">🔋 Charging</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#ev-exp">🚙 EV</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#ice-exp">⛽ ICE</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#master">⚙️</button></li>
+  </ul>
+
+  <main class="tab-content">
+    <!-- Charging -->
+    <div class="tab-pane fade show active" id="charge">
+      <div id="savingsSummary" class="summary-box">Loading savings...</div>
+
+      <div id="chargeBanner" class="toast-banner d-none"></div>
+      <div id="acBanner" class="toast-banner d-none"></div>
+
+      <div class="card card-body">
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label small">Current SoC %</label>
+            <input type="number" id="soc" class="form-control">
+          </div>
+          <div class="col-6">
+            <label class="form-label small">Odometer</label>
+            <input type="number" id="odo" class="form-control">
+          </div>
+        </div>
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="chargedChk">
+          <label class="form-check-label" for="chargedChk">Charged?</label>
+        </div>
+        <div id="chargeTypeWrap" class="mt-1" style="display:none;">
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="chargeType" id="acRadio" value="AC">
+            <label class="form-check-label" for="acRadio">AC</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="chargeType" id="dcRadio" value="DC">
+            <label class="form-check-label" for="dcRadio">DC</label>
+          </div>
+        </div>
+        <button class="btn btn-dark w-100 mt-2" id="saveInputsBtn">Save</button>
+
+        <label class="form-label small mt-2">Upcoming Ride (km)</label>
+        <input type="number" id="upcoming" class="form-control">
+        <button class="btn btn-primary w-100 mt-2" id="suggestBtn">Get Suggestion</button>
+      </div>
+
+      <div class="card card-body">
+        <h6>📜 History</h6>
+        <div id="history"></div>
+      </div>
+    </div>
+
+    <!-- EV Expenses -->
+    <div class="tab-pane fade" id="ev-exp">
+      <div class="card card-body">
+        <h6>EV Expenses</h6>
+        <div id="evTotal" class="mb-2 fw-bold">Total: ₹0</div>
+        <div class="row g-2">
+          <div class="col-6">
+            <select id="evCategory" class="form-select">
+              <option>Initial</option><option>Service</option><option>Fuel</option>
+              <option>Tyre</option><option>Toll</option><option>Maintenance</option>
+              <option>Challan</option><option>Other</option>
+            </select>
+          </div>
+          <div class="col-6"><input type="number" id="evAmount" class="form-control" placeholder="Amount"></div>
+        </div>
+        <button class="btn btn-dark w-100 mt-2" id="addEvExpenseBtn">Add</button>
+      </div>
+      <div class="card card-body"><div id="evHistory"></div></div>
+    </div>
+
+    <!-- ICE Expenses -->
+    <div class="tab-pane fade" id="ice-exp">
+      <div class="card card-body">
+        <h6>ICE Expenses</h6>
+        <div id="iceTotal" class="mb-2 fw-bold">Total: ₹0</div>
+        <div class="row g-2">
+          <div class="col-6">
+            <select id="iceCategory" class="form-select">
+              <option>Initial</option><option>Service</option>
+              <option>Tyre</option><option>Toll</option>
+              <option>Maintenance</option><option>Challan</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="col-6"><input type="number" id="iceAmount" class="form-control" placeholder="Amount"></div>
+        </div>
+        <button class="btn btn-dark w-100 mt-2" id="addIceExpenseBtn">Add</button>
+      </div>
+      <div class="card card-body"><div id="iceHistory"></div></div>
+    </div>
+
+    <!-- Master Data -->
+    <div class="tab-pane fade" id="master">
+      <div class="card card-body">
+        <h6>Fuel Price / Mileage</h6>
+        <div class="row g-2">
+          <div class="col-3"><input id="fuelType" class="form-control" placeholder="Diesel"></div>
+          <div class="col-3"><input type="number" id="fuelPrice" class="form-control" placeholder="₹/L"></div>
+          <div class="col-3"><input type="number" id="mileage" class="form-control" placeholder="km/L"></div>
+          <div class="col-3"><input type="date" id="fuelDate" class="form-control"></div>
+        </div>
+        <button class="btn btn-dark w-100 mt-2" id="saveMasterBtn">Save</button>
+      </div>
+      <div class="card card-body"><div id="masterHistory"></div></div>
+    </div>
+  </main>
+
+  <script type="module" src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
