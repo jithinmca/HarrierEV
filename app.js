@@ -116,16 +116,30 @@ el("saveInputsBtn")?.addEventListener("click", async () => {
 });
 
 el("suggestBtn")?.addEventListener("click", () => {
-  const soc = parseInt(el("soc").value);
-  const upcoming = parseInt(el("upcoming").value);
-  if (Number.isNaN(soc) || Number.isNaN(upcoming)) { showAlert("Fill SoC and upcoming ride km."); return; }
-
+  const upcoming = parseInt(el("upcoming")?.value);
+  const soc = parseInt(el("sochidden")?.value);
+  if (Number.isNaN(upcoming)) {
+    showAlert("Please enter upcoming ride km.");
+    return;
+  }
+  if (Number.isNaN(soc)) {
+    showAlert("No SoC value found. Please add a daily log first.");
+    return;
+  }
   let msg = "";
-  if (upcoming > 250) msg = "🔋 Charge to 100% (long trip ahead)";
-  else if (soc < 30) msg = "🔋 Charge to 80–90% tonight";
-  else if (soc < 50 && upcoming > 100) msg = "🔋 Charge to ~90% (extra buffer needed)";
-  else if (soc > 80 && upcoming < 50) msg = "✅ No charge needed tonight";
-  else msg = "🔋 Charge to ~80% for daily use";
+  if (soc >= 100) {
+    msg = "✅ SoC is already 100%. No charging needed.";
+  } else if (upcoming > 250) {
+    msg = "🔋 Charge to 100% (long trip ahead)";
+  } else if (soc < 30) {
+    msg = "🔋 Charge to 80–90% tonight (SoC is low)";
+  } else if (soc < 50 && upcoming > 100) {
+    msg = "🔋 Charge to ~90% (extra buffer needed for your trip)";
+  } else if (soc > 80 && upcoming < 50) {
+    msg = "✅ No charge needed tonight (SoC is high, short trip)";
+  } else {
+    msg = "🔋 Charge to ~80% for daily use (SoC is sufficient)";
+  }
   showAlert(msg);
 });
 
@@ -203,6 +217,7 @@ async function loadDailyLogs() {
       if (!latestSnap.empty) {
         const latest = latestSnap.docs[0].data();
         el("soc").value = latest.soc;
+        el("sochidden").value = latest.soc;
         el("odo").value = latest.odo;
         if (latest.charged) {
           el("chargedChk").checked = true;
