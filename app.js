@@ -427,48 +427,71 @@ async function calcFuelCostDynamic() {
       date: new Date(l.date),
       odo: Number(l.odo)
     }));
-
     if (logs.length === 0) return 0;
 
-    // If only one log exists, assume previous odo = 0
-    if (logs.length === 1) {
-      const curr = logs[0];
-      const dist = curr.odo;  // since prev = 0
-      if (dist <= 0) return 0;
-
-      // find applicable master record
-      let applicable = masters[0];
-      for (let j = 0; j < masters.length; j++) {
-        if (masters[j].date.getTime() <= curr.date.getTime()) applicable = masters[j];
-        else break;
+    // Helper: find odo at or before a given date
+    function findOdoAtOrBefore(date) {
+      let odo = null;
+      for (let i = logs.length - 1; i >= 0; i--) {
+        if (logs[i].date.getTime() <= date.getTime()) {
+          odo = logs[i].odo;
+          break;
+        }
       }
-
-      if (applicable && applicable.mileage > 0 && applicable.fuelPrice > 0) {
-        const litres = dist / applicable.mileage;
-        return litres * applicable.fuelPrice;
-      }
-      return 0;
+      // If no log before, use first log odo (if any)
+      if (odo === null && logs.length > 0) odo = logs[0].odo;
+      return odo;
     }
 
-    // If 2 or more logs, do normal segment-by-segment calculation
+    // Build segment boundaries: for each master, get odo at its date
+    let segments = [];
+    for (let i = 0; i < masters.length; i++) {
+      const m = masters[i];
+      const odo = findOdoAtOrBefore(m.date);
+      segments.push({
+        date: m.date,
+        odo: odo,
+        fuelPrice: m.fuelPrice,
+        mileage: m.mileage
+      });
+    }
+
+    // Add last odo (latest log) as segment end
+    const lastLog = logs[logs.length - 1];
+    segments.push({
+      date: lastLog.date,
+      odo: lastLog.odo,
+      fuelPrice: segments.length > 0 ? segments[segments.length - 1].fuelPrice : 0,
+      mileage: segments.length > 0 ? segments[segments.length - 1].mileage : 0
+    });
+
+    // Special case: if all odometer logs after the last masterData date have the same value, treat as distance from 0 to that value
+    if (masters.length === 1 && logs.length >= 1) {
+      const masterDate = masters[0].date;
+      const afterMasterLogs = logs.filter(l => l.date.getTime() >= masterDate.getTime());
+      if (afterMasterLogs.length > 0) {
+        const uniqueOdo = [...new Set(afterMasterLogs.map(l => l.odo))];
+        if (uniqueOdo.length === 1) {
+          const odo = uniqueOdo[0];
+          if (odo > 0 && masters[0].mileage > 0 && masters[0].fuelPrice > 0) {
+            const litres = odo / masters[0].mileage;
+            return litres * masters[0].fuelPrice;
+          }
+        }
+      }
+    }
+
+    // Calculate fuel cost for each segment
     let totalFuelCost = 0;
-    for (let i = 1; i < logs.length; i++) {
-      const prev = logs[i - 1];
-      const curr = logs[i];
+    for (let i = 1; i < segments.length; i++) {
+      const prev = segments[i - 1];
+      const curr = segments[i];
+      if (prev.odo == null || curr.odo == null) continue;
       const dist = curr.odo - prev.odo;
       if (!(dist > 0)) continue;
-
-      // find applicable master record: last one with date <= curr.date
-      let applicable = null;
-      for (let j = 0; j < masters.length; j++) {
-        if (masters[j].date.getTime() <= curr.date.getTime()) applicable = masters[j];
-        else break;
-      }
-      if (!applicable) applicable = masters[0];
-
-      if (applicable && applicable.mileage > 0 && applicable.fuelPrice > 0) {
-        const litres = dist / applicable.mileage;
-        totalFuelCost += litres * applicable.fuelPrice;
+      if (prev.mileage > 0 && prev.fuelPrice > 0) {
+        const litres = dist / prev.mileage;
+        totalFuelCost += litres * prev.fuelPrice;
       }
     }
     return totalFuelCost;
