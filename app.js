@@ -480,22 +480,31 @@ async function calcFuelCostDynamic() {
       mileage: segments.length > 0 ? segments[segments.length - 1].mileage : 0
     });
 
-    // Special case: if all odometer logs after the last masterData date have the same value, treat as distance from 0 to that value
-    if (masters.length === 1 && logs.length >= 1) {
+    // Special case: if only one master record and all logs are after master date, use latest odo as total distance
+    if (masters.length === 1 && logs.length > 0) {
       const masterDate = masters[0].date;
-      const afterMasterLogs = logs.filter(l => l.date.getTime() >= masterDate.getTime());
-      if (afterMasterLogs.length > 0) {
-        const uniqueOdo = [...new Set(afterMasterLogs.map(l => l.odo))];
-        if (uniqueOdo.length === 1) {
-          const odo = uniqueOdo[0];
-          if (odo > 0 && masters[0].mileage > 0 && masters[0].fuelPrice > 0) {
-            const litres = odo / masters[0].mileage;
-            return litres * masters[0].fuelPrice;
-          }
+      const allAfter = logs.every(l => l.date.getTime() >= masterDate.getTime());
+      if (allAfter) {
+        const lastOdo = logs[logs.length - 1].odo;
+        if (lastOdo > 0 && masters[0].mileage > 0 && masters[0].fuelPrice > 0) {
+          const litres = lastOdo / masters[0].mileage;
+          return litres * masters[0].fuelPrice;
         }
       }
     }
 
+    // Special case: if only one master record and all logs are after master date, use latest odo as total distance
+    if (masters.length === 1 && logs.length > 0) {
+      const masterDate = masters[0].date;
+      const allAfter = logs.every(l => l.date.getTime() >= masterDate.getTime());
+      if (allAfter) {
+        const lastOdo = logs[logs.length - 1].odo;
+        if (lastOdo > 0 && masters[0].mileage > 0 && masters[0].fuelPrice > 0) {
+          const litres = lastOdo / masters[0].mileage;
+          return litres * masters[0].fuelPrice;
+        }
+      }
+    }
     // Calculate fuel cost for each segment
     let totalFuelCost = 0;
     for (let i = 1; i < segments.length; i++) {
