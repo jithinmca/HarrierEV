@@ -104,19 +104,27 @@
 
     <!-- EV Expenses -->
     <div class="tab-pane fade" id="ev-exp">
+      <div class="summary-box" id="evExpSummary">
+        <div class="d-flex justify-content-between small">
+          <div><small class="text-muted">Fuel</small> <b id="evFuelTotal">₹0</b></div>
+          <div><small class="text-muted">Service</small> <b id="evServiceTotal">₹0</b></div>
+          <div><small class="text-muted">Total</small> <b id="evTotal">₹0</b></div>
+        </div>
+      </div>
       <div class="section-box">
         <h6>EV Expenses</h6>
-        <div id="evTotal" class="fw-bold small mb-2">Total: ₹0</div>
         <div class="row g-2">
           <div class="col-6">
             <select id="evCategory" class="form-select">
               <option>Initial</option><option>Service</option><option>Fuel</option>
               <option>Tyre</option><option>Toll</option><option>Maintenance</option>
-              <option>Challan</option><option>Other</option>
+              <option>Challan</option><option>Pickup & Drop</option>
+              <option>Wheel Align/Rotation</option><option>Other</option>
             </select>
           </div>
           <div class="col-6"><input type="number" id="evAmount" class="form-control" placeholder="Amount"></div>
         </div>
+        <input type="text" id="evRemarks" class="form-control mt-2" placeholder="Remarks (optional)">
         <button class="btn btn-dark w-100 mt-2" id="addEvExpenseBtn">Add</button>
       </div>
       <div class="section-box"><div id="evHistory"></div></div>

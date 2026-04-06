@@ -15,6 +15,7 @@ import {
   getDocs,
   doc,
   deleteDoc,
+  updateDoc,
   query,
   orderBy,
   limit,
@@ -108,6 +109,7 @@ el("saveInputsBtn")?.addEventListener("click", async () => {
     await addDoc(col("dailyLogs"), { date: new Date().toISOString(), soc, odo, charged, chargeType });
     cache.dailyLogs = await fetchCollection("dailyLogs", "asc");
     renderDailyLogs();
+    renderIceExpenses();
     updateSavingsSummary();
   } catch (e) { showAlert("Save failed: " + e.message); }
 });
@@ -163,7 +165,7 @@ function renderDailyLogs() {
     if (!confirmYes("Delete log?")) return;
     await deleteDoc(doc(col("dailyLogs"), e.currentTarget.dataset.delLog));
     cache.dailyLogs = await fetchCollection("dailyLogs","asc");
-    renderDailyLogs(); updateSavingsSummary();
+    renderDailyLogs(); renderIceExpenses(); updateSavingsSummary();
   }));
 
   // Prefill inputs
@@ -188,19 +190,79 @@ function renderDailyLogs() {
 }
 
 function renderEvExpenses() {
-  let total = 0, html="";
+  let total = 0, fuelTotal = 0, serviceTotal = 0, html="";
   cache.evExpenses.forEach(x => {
-    total+=Number(x.amount)||0;
+    const amt = Number(x.amount)||0;
+    total+=amt;
+    if(x.category==="Fuel") fuelTotal+=amt;
+    if(x.category==="Service") serviceTotal+=amt;
+    const dateStr=x.date.toISOString().split('T')[0];
+    const remarks=x.remarks?`<div class="text-muted small fst-italic">${x.remarks}</div>`:"";
     html+=`
-    <div class="border rounded p-2 mb-2 small bg-white">
+    <div class="border rounded p-2 mb-2 small bg-white" id="ev-row-${x.id}">
       <div class="d-flex justify-content-between">
-        <div><b>${x.category}</b><div class="text-muted small">${x.date.toLocaleDateString()}</div></div>
-        <div>₹${x.amount}<button class="btn btn-sm btn-outline-danger ms-2" data-del-ev="${x.id}">🗑️</button></div>
+        <div><b>${x.category}</b>${remarks}<div class="text-muted small">${x.date.toLocaleDateString()}</div></div>
+        <div>₹${x.amount}
+          <button class="btn btn-sm btn-outline-primary ms-1" data-edit-ev="${x.id}" data-ev-cat="${x.category}" data-ev-amt="${x.amount}" data-ev-rem="${x.remarks||''}" data-ev-date="${dateStr}">✏️</button>
+          <button class="btn btn-sm btn-outline-danger ms-1" data-del-ev="${x.id}">🗑️</button>
+        </div>
       </div>
     </div>`;
   });
   el("evHistory").innerHTML=html||`<span class="text-muted">No EV expenses</span>`;
-  el("evTotal").textContent="Total: ₹"+Math.round(total);
+  el("evTotal").textContent="₹"+Math.round(total);
+  el("evFuelTotal").textContent="₹"+Math.round(fuelTotal);
+  el("evServiceTotal").textContent="₹"+Math.round(serviceTotal);
+  document.querySelectorAll("[data-edit-ev]").forEach(btn=>btn.addEventListener("click", async e=>{
+    const btn=e.currentTarget;
+    const id=btn.dataset.editEv;
+    const oldCat=btn.dataset.evCat;
+    const oldAmt=btn.dataset.evAmt;
+    const oldRem=btn.dataset.evRem||"";
+    const oldDate=btn.dataset.evDate;
+    const cats=["Initial","Service","Fuel","Tyre","Toll","Maintenance","Challan","Pickup & Drop","Wheel Align/Rotation","Other"];
+    const row=document.getElementById("ev-row-"+id);
+    row.innerHTML=`
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="form-label small mb-0">Date</label>
+          <input type="date" class="form-control" id="editEvDate-${id}" value="${oldDate}">
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-0">Category</label>
+          <select class="form-select" id="editEvCat-${id}">
+            ${cats.map(c=>`<option${c===oldCat?" selected":""}>${c}</option>`).join("")}
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-0">Amount</label>
+          <input type="number" class="form-control" id="editEvAmt-${id}" value="${oldAmt}">
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-0">Remarks</label>
+          <input type="text" class="form-control" id="editEvRem-${id}" value="${oldRem}">
+        </div>
+      </div>
+      <div class="d-flex gap-2 mt-2">
+        <button class="btn btn-sm btn-dark flex-fill" id="editEvSave-${id}">Save</button>
+        <button class="btn btn-sm btn-outline-secondary flex-fill" id="editEvCancel-${id}">Cancel</button>
+      </div>`;
+    document.getElementById("editEvCancel-"+id).addEventListener("click",()=>{
+      renderEvExpenses();
+    });
+    document.getElementById("editEvSave-"+id).addEventListener("click",async()=>{
+      const newDate=document.getElementById("editEvDate-"+id).value;
+      const newCat=document.getElementById("editEvCat-"+id).value;
+      const newAmt=parseFloat(document.getElementById("editEvAmt-"+id).value);
+      const newRem=document.getElementById("editEvRem-"+id).value.trim();
+      if(!(newAmt>0)) return showAlert("Enter valid amount");
+      const updates={category:newCat, amount:newAmt, remarks:newRem};
+      if(newDate) updates.date=new Date(newDate+"T00:00:00").toISOString();
+      await updateDoc(doc(col("evExpenses"),id),updates);
+      cache.evExpenses=await fetchCollection("evExpenses");
+      renderEvExpenses(); updateSavingsSummary();
+    });
+  }));
   document.querySelectorAll("[data-del-ev]").forEach(btn=>btn.addEventListener("click", async e=>{
     if(!confirmYes("Delete EV expense?")) return;
     await deleteDoc(doc(col("evExpenses"), e.currentTarget.dataset.delEv));
@@ -286,15 +348,26 @@ function calcFuelCostDynamic() {
 // ------------------- Savings summary -------------------
 function updateSavingsSummary() {
   const evTotal=cache.evExpenses.reduce((a,b)=>a+(Number(b.amount)||0),0);
+  const evFuel=cache.evExpenses.filter(x=>x.category==="Fuel").reduce((a,b)=>a+(Number(b.amount)||0),0);
+  const evService=cache.evExpenses.filter(x=>x.category==="Service").reduce((a,b)=>a+(Number(b.amount)||0),0);
   const iceManual=cache.iceExpenses.reduce((a,b)=>a+(Number(b.amount)||0),0);
   const iceFuel=calcFuelCostDynamic();
   const iceTotal=iceManual+iceFuel;
   const savings=iceTotal-evTotal;
+  const fuelProfit=iceFuel-evFuel;
   el("savingsSummary").innerHTML=`
-    <div><small class="text-muted">EV</small> <b>₹${Math.round(evTotal)}</b> | 
-    <small class="text-muted">ICE</small> <b>₹${Math.round(iceTotal)}</b> | 
-    <small class="text-muted">Net</small> <b class="${savings>=0?"text-success":"text-danger"}">₹${Math.round(savings)}</b></div>`;
-  el("evTotal").textContent="Total: ₹"+Math.round(evTotal);
+    <div class="d-flex justify-content-between small mb-1">
+      <div>⛽ <b>Fuel</b> <b class="text-primary">₹${Math.round(evFuel)}</b></div>
+      <div>🔧 <b>Service</b> <b class="text-primary">₹${Math.round(evService)}</b></div>
+      <div>⛽ <b>ICE Fuel</b> <b class="text-primary">₹${Math.round(iceFuel)}</b></div>
+      <div>💰 <b class="${fuelProfit>=0?"text-success":"text-danger"}">₹${Math.round(fuelProfit)}</b></div>
+    </div>
+    <div class="d-flex justify-content-between text-muted" style="font-size:11px;">
+      <div>EV ₹${Math.round(evTotal)}</div>
+      <div>ICE ₹${Math.round(iceTotal)}</div>
+      <div>Net <span class="${savings>=0?"text-success":"text-danger"}">₹${Math.round(savings)}</span></div>
+    </div>`;
+  el("evTotal").textContent="₹"+Math.round(evTotal);
   el("iceTotal").textContent="Total: ₹"+Math.round(iceTotal);
 }
 
@@ -302,11 +375,12 @@ function updateSavingsSummary() {
 el("addEvExpenseBtn")?.addEventListener("click", async ()=>{
   const cat=el("evCategory").value||"Other";
   const amt=parseFloat(el("evAmount").value);
+  const rem=el("evRemarks").value.trim();
   if(!(amt>0)) return showAlert("Enter EV amount");
-  await addDoc(col("evExpenses"),{date:new Date().toISOString(), category:cat, amount:amt});
+  await addDoc(col("evExpenses"),{date:new Date().toISOString(), category:cat, amount:amt, remarks:rem});
   cache.evExpenses=await fetchCollection("evExpenses");
   renderEvExpenses(); updateSavingsSummary();
-  el("evAmount").value="";
+  el("evAmount").value=""; el("evRemarks").value="";
 });
 el("addIceExpenseBtn")?.addEventListener("click", async ()=>{
   const cat=el("iceCategory").value||"Other";
